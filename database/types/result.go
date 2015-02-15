@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -43,6 +44,22 @@ func (r *Result) Update(enc string) *Result {
 		r.es = append(r.es, enc)
 	}
 	return r
+}
+
+func (r *Result) Json() []byte {
+	if len(r.es) <= 1 {
+		return []byte(r.es[0])
+	}
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	for i, enc := range r.es {
+		buf.WriteString(enc)
+		if i < len(r.es)-1 {
+			buf.WriteString(",")
+		}
+	}
+	buf.WriteString("[")
+	return buf.Bytes()
 }
 
 func (r *Result) NumRows() int {
