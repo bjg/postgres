@@ -27,14 +27,14 @@ func (r *Result) One(model interface{}) error {
 	return r.err
 }
 
-func (r *Result) Each(model Model, do func(interface{})) error {
+func (r *Result) Each(model Model, do func(interface{}, string)) error {
 	if r.err != nil {
 		return r.err
 	}
 	for _, enc := range r.es {
 		instance := model.GetInstance()
 		r.err = json.NewDecoder(strings.NewReader(enc)).Decode(instance)
-		do(instance)
+		do(instance, enc)
 	}
 	return r.err
 }
@@ -47,19 +47,27 @@ func (r *Result) Update(enc string) *Result {
 }
 
 func (r *Result) Json() []byte {
-	if len(r.es) <= 1 {
+	switch len(r.es) {
+	case 0:
+		return []byte{}
+	case 1:
 		return []byte(r.es[0])
-	}
-	var buf bytes.Buffer
-	buf.WriteString("[")
-	for i, enc := range r.es {
-		buf.WriteString(enc)
-		if i < len(r.es)-1 {
-			buf.WriteString(",")
+	default:
+		var buf bytes.Buffer
+		buf.WriteString("[")
+		for i, enc := range r.es {
+			buf.WriteString(enc)
+			if i < len(r.es)-1 {
+				buf.WriteString(",")
+			}
 		}
+		buf.WriteString("]")
+		return buf.Bytes()
 	}
-	buf.WriteString("[")
-	return buf.Bytes()
+}
+
+func (r *Result) String() string {
+	return string(r.Json())
 }
 
 func (r *Result) NumRows() int {

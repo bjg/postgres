@@ -21,6 +21,10 @@ func (wc *WallClock) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		// Failing that, try kitchen format: 12:30PM
 		wc.Time, err = time.Parse(time.Kitchen, s)
+		if err != nil {
+			// Failing that, try RFC3339 format: 2006-01-02T15:04:05Z
+			wc.Time, err = time.Parse(time.RFC3339, s)
+		}
 	}
 	return err
 }

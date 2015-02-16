@@ -17,7 +17,9 @@ func (a *Array) UnmarshalJSON(b []byte) error {
 	elems := []string{}
 	for _, s := range strings.Split(string(b[1:len(b)-1]), ",") {
 		s = strings.TrimSpace(s)
-		elems = append(elems, s)
+		if len(s) > 0 {
+			elems = append(elems, s)
+		}
 	}
 	a.elems = &elems
 	return nil
@@ -25,6 +27,13 @@ func (a *Array) UnmarshalJSON(b []byte) error {
 
 func (a Array) String() string {
 	return string(a.bytes())
+}
+
+func (a Array) Split() []string {
+	if a.elems == nil {
+		return []string{}
+	}
+	return *a.elems
 }
 
 func (a Array) bytes() []byte {
