@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/bjg/postgres/database/types"
 	"github.com/bjg/postgres/database/util"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -50,47 +49,33 @@ func Truncate(model interface{}) error {
 	return err
 }
 
-func Find(model interface{}, cond ...interface{}) *types.Result {
-	stmt := util.MakeSelect(model, cond...)
-	var (
-		rows *sqlx.Rows
-		err  error
-	)
-	if len(cond) == 0 {
-		rows, err = db.Queryx(stmt)
-	} else {
-		rows, err = db.Queryx(stmt, cond[1:]...)
-	}
-	return readRows(rows, err)
-}
-
-func Create(model interface{}) *types.Result {
+func Create(model interface{}) (int64, error) {
 	stmt, values := util.MakeInsert(model)
-	var enc string
-	err := db.QueryRowx(stmt, values...).Scan(&enc)
-	r := types.NewResult(err)
-	return r.Update(enc)
+	//log.Println(stmt, values)
+	var id int64
+	err := db.QueryRowx(stmt, values...).Scan(&id)
+	return id, err
 }
 
-func Save(model interface{}) *types.Result {
+func Save(model interface{}) (int64, error) {
 	stmt, values := util.MakeUpdate(model)
-	var enc string
-	err := db.QueryRowx(stmt, values...).Scan(&enc)
-	r := types.NewResult(err)
-	return r.Update(enc)
-}
-
-func Fetch(model interface{}, ID int64) error {
-	return Find(model, "WHERE id = $1 LIMIT 1", ID).One(model)
+	var id int64
+	err := db.QueryRowx(stmt, values...).Scan(&id)
+	return id, err
 }
 
 func Remove(model interface{}) error {
-	_, err := db.Exec(fmt.Sprintf("DELETE FROM %v WHERE id = $1", util.TableName(model)), util.GetValueOfField(model, "ID"))
+	_, err := db.Exec(fmt.Sprintf("DELETE FROM %v WHERE id = $1", util.TableName(model)),
+		util.GetValueOfField(model, "ID"))
 	return err
 }
 
-func Query(stmt string, args ...interface{}) *types.Result {
-	return readRows(db.Queryx(stmt, args...))
+func One(model interface{}, query string, args ...interface{}) error {
+	return db.Get(model, query, args...)
+}
+
+func Find(model interface{}, query string, args ...interface{}) error {
+	return db.Select(model, query, args...)
 }
 
 func mustOpen() *sqlx.DB {
@@ -110,15 +95,4 @@ func mustOpen() *sqlx.DB {
 		}
 	}
 	return db
-}
-
-func readRows(rows *sqlx.Rows, err error) *types.Result {
-	r := types.NewResult(err)
-	for r.Error() == nil && rows.Next() {
-		var enc string
-		if rows.Scan(&enc) == nil {
-			r.Update(enc)
-		}
-	}
-	return r
 }

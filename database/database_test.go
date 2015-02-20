@@ -8,35 +8,38 @@ import (
 
 	"fmt"
 
-	"flaconline.info/server/lib/database/types"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
 type TestModel struct {
-	ID      int64           `json:"id" ddl:"integer PRIMARY KEY NOT NULL DEFAULT nextval('%v_id_seq')"`
-	Created types.Timestamp `json:"created_at" ddl:"timestamp with time zone"`
-	Updated types.Timestamp `json:"updated_at" ddl:"timestamp with time zone"`
-	Name    string          `json:"name" ddl:"character varying(255)"`
-	Email   string          `json:"email" ddl:"character varying(255)"`
-	Enabled bool            `json:"enabled" ddl:"boolean DEFAULT false"`
+	ID      int64     `json:"id" db:"id" ddl:"bigserial PRIMARY KEY"`
+	Created time.Time `json:"created_at" db:"created_at" ddl:"timestamp with time zone"`
+	Updated time.Time `json:"updated_at" db:"updated_at" ddl:"timestamp with time zone"`
+	Name    string    `json:"name" db:"name" ddl:"character varying(255)"`
+	Email   string    `json:"email" db:"email" ddl:"character varying(255)"`
+	Enabled bool      `json:"enabled" db:"enabled" ddl:"boolean DEFAULT false"`
 }
 
-func (tm TestModel) GetInstance() interface{} {
-	return &TestModel{}
+func (tm TestModel) Scan(src *sqlx.Rows) (interface{}, error) {
+	m := TestModel{}
+	err := src.StructScan(&m)
+	return m, err
 }
 
 func run(test func()) {
-	DropTable(TestModel{})
 	MustCreateTable(TestModel{})
 	test()
+	DropTable(TestModel{})
 }
 
 func insertOne(name, email string) *TestModel {
-	m := &TestModel{}
-	err := Create(TestModel{Name: name, Email: email, Enabled: true}).One(m)
+	m := TestModel{Name: name, Email: email, Enabled: true}
+	id, err := Create(m)
 	if err != nil {
 		log.Fatal(err)
 	}
+	m.ID = id
 	return &m
 }
 
@@ -47,15 +50,15 @@ func TestCreate(t *testing.T) {
 		assert.Equal(t, "John", m.Name)
 		assert.Equal(t, "john@example.com", m.Email)
 		assert.Equal(t, true, m.Enabled)
-		assert.Equal(t, time.Now().Second(), m.Created.Second())
 	})
 }
 
 func TestFindOne(t *testing.T) {
 	run(func() {
 		insertOne("John", "john@example.com")
-		m := &TestModel{}
-		if err := Find(m, `WHERE name = 'John' LIMIT 1`).One(m); err != nil {
+		m := TestModel{}
+		err := One(&m, `SELECT * FROM testmodels WHERE name = 'John' LIMIT 1`)
+		if err != nil {
 			t.Error(err)
 		}
 		assert.NotEqual(t, 0, m.ID)
@@ -69,10 +72,8 @@ func TestFindAll(t *testing.T) {
 		for _, name := range examples {
 			insertOne(name, fmt.Sprintf("%s@example.com", strings.ToLower(name)))
 		}
-		ms := []*TestModel{}
-		err := Find(TestModel{}).Each(TestModel{}, func(model interface{}) {
-			ms = append(ms, model.(*TestModel))
-		})
+		ms := []TestModel{}
+		err := Find(&ms, `SELECT * FROM testmodels`)
 		if err != nil {
 			t.Error(err)
 		}
@@ -83,24 +84,16 @@ func TestFindAll(t *testing.T) {
 	})
 }
 
-func TestFetch(t *testing.T) {
-	run(func() {
-		id := insertOne("John", "john@example.com").ID
-		m := &TestModel{}
-		if err := Fetch(m, id); err != nil {
-			t.Error(err)
-		}
-		assert.Equal(t, id, m.ID)
-		assert.Equal(t, "John", m.Name)
-	})
-}
-
 func TestSave(t *testing.T) {
 	run(func() {
 		m := insertOne("John", "john@example.com")
 		m.Name = "Jane"
-		s := &TestModel{}
-		if err := Save(*m).One(s); err != nil {
+		if _, err := Save(*m); err != nil {
+			t.Error(err)
+		}
+		s := TestModel{}
+		err := One(&s, `SELECT * FROM testmodels WHERE id = $1 LIMIT 1`, m.ID)
+		if err != nil {
 			t.Error(err)
 		}
 		assert.Equal(t, m.ID, s.ID)
@@ -114,45 +107,8 @@ func TestRemove(t *testing.T) {
 		if err := Remove(*m); err != nil {
 			t.Error(err)
 		}
-		r := &TestModel{}
-		err := Find(m, "WHERE id = $1 LIMIT 1", m.ID).One(r)
+		d := TestModel{}
+		err := One(&d, `SELECT * FROM testmodels WHERE id = $1 LIMIT 1`, m.ID)
 		assert.Error(t, err)
 	})
 }
-
-/*
-func TestDuplicate(t *testing.T) {
-	run(func() {
-		c, _ := insertOne("John", "john@example.com")
-		_, err := c.Create()
-		if err == nil {
-			t.Error("Expected duplicate category to be rejected")
-		}
-	})
-}
-
-func TestNonDuplicate(t *testing.T) {
-	run(func() {
-		insertOne("John", "john@example.com")
-		_, err := insertOne("Civil", "Civil Legal Issues", 0x111111, 0xeeeeee)
-		if err != nil {
-			t.Error("Expected non-duplicate category to be saved", "\n\n", err)
-		}
-	})
-}
-
-func TestUpdate(t *testing.T) {
-	run(func() {
-		c, _ := insertOne("John", "john@example.com")
-		c.Background = 0x12345678
-		u, err := c.Upsert()
-		if err != nil {
-			t.Error(err)
-		}
-		if u.Background != 0x12345678 {
-			t.Error("Expected category attribute to be changed\n", *u)
-		}
-	})
-}
-
-*/

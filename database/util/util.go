@@ -45,17 +45,6 @@ func MakeCreate(model interface{}) string {
 	return attrs.String()
 }
 
-func MakeSelect(model interface{}, args ...interface{}) string {
-	name := TableName(model)
-	stmt := fmt.Sprintf("SELECT to_json(%v) FROM %v", name, name)
-	if len(args) > 0 {
-		if cond, ok := args[0].(string); ok {
-			stmt = fmt.Sprintf("%v %v", stmt, cond)
-		}
-	}
-	return stmt
-}
-
 func MakeInsert(model interface{}) (string, []interface{}) {
 	name := TableName(model)
 	if _, ok := insertStatements[name]; !ok {
@@ -83,7 +72,7 @@ func MakeInsert(model interface{}) (string, []interface{}) {
 				}
 			}
 		}
-		stmt := fmt.Sprintf(`WITH r AS (INSERT INTO %s (%v) VALUES (%v) RETURNING *) SELECT to_json(r) FROM r`,
+		stmt := fmt.Sprintf(`INSERT INTO %s (%v) VALUES (%v) RETURNING id`,
 			name, attrs.String(), bindvars.String())
 		insertStatements[name] = stmt
 	}
@@ -117,7 +106,7 @@ func MakeUpdate(model interface{}) (string, []interface{}) {
 				}
 			}
 		}
-		stmt := fmt.Sprintf(`WITH r AS (UPDATE %s SET %v WHERE id = %v RETURNING *) SELECT to_json(r) FROM r`,
+		stmt := fmt.Sprintf(`UPDATE %s SET %v WHERE id = %v RETURNING id`,
 			name, attrs.String(), fmt.Sprintf("$%d", cnt+1))
 		updateStatements[name] = stmt
 	}
