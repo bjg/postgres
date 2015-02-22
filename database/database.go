@@ -78,6 +78,11 @@ func Find(model interface{}, query string, args ...interface{}) error {
 	return db.Select(model, query, args...)
 }
 
+func Exec(query string, args ...interface{}) error {
+	_, err := db.Exec(query, args...)
+	return err
+}
+
 func mustOpen() *sqlx.DB {
 	if db == nil {
 		var err error
