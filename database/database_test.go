@@ -8,7 +8,6 @@ import (
 
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,10 +20,8 @@ type TestModel struct {
 	Enabled bool      `json:"enabled" db:"enabled" ddl:"boolean DEFAULT false"`
 }
 
-func (tm TestModel) Scan(src *sqlx.Rows) (interface{}, error) {
-	m := TestModel{}
-	err := src.StructScan(&m)
-	return m, err
+func (m TestModel) GetInstance() interface{} {
+	return &TestModel{}
 }
 
 func run(test func()) {
@@ -35,12 +32,11 @@ func run(test func()) {
 
 func insertOne(name, email string) *TestModel {
 	m := TestModel{Name: name, Email: email, Enabled: true}
-	id, err := Create(m)
+	mc, err := Create(m)
 	if err != nil {
 		log.Fatal(err)
 	}
-	m.ID = id
-	return &m
+	return mc.(*TestModel)
 }
 
 func TestCreate(t *testing.T) {

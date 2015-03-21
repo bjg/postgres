@@ -37,7 +37,8 @@ func MustCreateTable(model interface{}) {
 	if match, _ := regexp.MatchString(ddl, "^uuid"); match {
 		db.Exec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`)
 	}
-	db.MustExec(fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`, name, util.MakeCreate(model)))
+	spec := util.MakeCreate(model)
+	db.MustExec(fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %v (%v)`, name, spec))
 }
 
 func DropTable(model interface{}) {
@@ -49,19 +50,19 @@ func Truncate(model interface{}) error {
 	return err
 }
 
-func Create(model interface{}) (int64, error) {
+func Create(model Model) (interface{}, error) {
 	stmt, values := util.MakeInsert(model)
 	//log.Println(stmt, values)
-	var id int64
-	err := db.QueryRowx(stmt, values...).Scan(&id)
-	return id, err
+	created := model.GetInstance()
+	err := db.QueryRowx(stmt, values...).StructScan(created)
+	return created, err
 }
 
-func Save(model interface{}) (int64, error) {
+func Save(model Model) (interface{}, error) {
 	stmt, values := util.MakeUpdate(model)
-	var id int64
-	err := db.QueryRowx(stmt, values...).Scan(&id)
-	return id, err
+	updated := model.GetInstance()
+	err := db.QueryRowx(stmt, values...).StructScan(updated)
+	return updated, err
 }
 
 func Remove(model interface{}) error {
@@ -81,6 +82,17 @@ func Find(model interface{}, query string, args ...interface{}) error {
 func Exec(query string, args ...interface{}) error {
 	_, err := db.Exec(query, args...)
 	return err
+}
+
+func Prepare(query string) (*sqlx.Stmt, error) {
+	return db.Preparex(query)
+}
+
+func Count(model interface{}, query string, args ...interface{}) (int, error) {
+	var count int
+	stmt := fmt.Sprintf("SELECT COUNT(*) FROM %v %v", util.TableName(model), query)
+	err := db.QueryRowx(stmt, args...).Scan(&count)
+	return count, err
 }
 
 func mustOpen() *sqlx.DB {

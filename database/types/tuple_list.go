@@ -3,12 +3,13 @@ package types
 import (
 	"bytes"
 	"log"
+	"strconv"
+	"strings"
 )
 
 type Tuple struct {
 	Key   string
-	Label string
-	Value string
+	Value interface{}
 }
 
 type TupleList []Tuple
@@ -18,6 +19,7 @@ func (tl *TupleList) Scan(src interface{}) error {
 	buf := src.([]byte)
 	buf = buf[1:]
 	buf[len(buf)-1] = ','
+	//log.Println(string(buf))
 	const (
 		Start = iota
 		Open
@@ -30,10 +32,27 @@ func (tl *TupleList) Scan(src interface{}) error {
 		switch state {
 		case Start:
 			if buf[i] == ',' {
-				// End of current tuple
-				if len(vals[2]) > 1 {
-					tuples = append(tuples, Tuple{vals[0], vals[1], vals[2]})
+				var v interface{}
+				if len(vals) > 2 {
+					v = strings.Join(vals[1:], ",") // string(s)
+				} else {
+					// End of current tuple
+					if vals[1] != "" {
+						if integer, err := strconv.ParseInt(vals[1], 0, 64); err == nil {
+							v = integer
+						} else if float, err := strconv.ParseFloat(vals[1], 64); err == nil {
+							v = float
+						} else if boolean, err := strconv.ParseBool(vals[1]); err == nil {
+							v = boolean
+						} else {
+							v = vals[1] // string
+						}
+					} else {
+						v = ""
+					}
 				}
+				t := Tuple{vals[0], v}
+				tuples = append(tuples, t)
 				vals = []string{}
 				i++
 			} else if bytes.HasPrefix(buf[i:], []byte(`"(`)) {
@@ -45,7 +64,7 @@ func (tl *TupleList) Scan(src interface{}) error {
 			}
 		case Open:
 			if bytes.HasPrefix(buf[i:], []byte(`""`)) {
-				// Skip over double inverted commas
+				// Squash double inverted commas
 				i += 2
 			} else if parens == 0 && bytes.HasPrefix(buf[i:], []byte(`)"`)) {
 				// End of current value and tuple

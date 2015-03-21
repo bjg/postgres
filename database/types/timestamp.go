@@ -1,28 +1,36 @@
 package types
 
-import "time"
+import (
+	"database/sql/driver"
+	"time"
+)
 
-type Timestamp struct {
-	time.Time
+type Timestamp time.Time
+
+func (ts Timestamp) Value() (driver.Value, error) {
+	return []byte(time.Time(ts).Format(time.RFC3339)), nil
 }
 
-const TS_FORMAT = "2006-01-02 15:04:05.999999+00"
+func (ts *Timestamp) Scan(src interface{}) error {
+	*ts = Timestamp(src.(time.Time))
+	return nil
+}
 
 func (ts *Timestamp) MarshalJSON() ([]byte, error) {
 	return []byte(ts.String()), nil
 }
 
 func (ts *Timestamp) UnmarshalJSON(b []byte) error {
-	var err error
 	// Need to strip delimiting quote marks
 	s := string(b[1 : len(b)-1])
-	ts.Time, err = time.Parse(TS_FORMAT, s)
+	t, err := time.Parse(time.Kitchen, s)
 	if err != nil {
-		ts.Time, err = time.Parse(time.RFC3339Nano, s)
+		t, err = time.Parse(time.RFC3339, s)
 	}
+	*ts = Timestamp(t)
 	return err
 }
 
 func (ts Timestamp) String() string {
-	return ts.Format(TS_FORMAT)
+	return time.Time(ts).Format(time.RFC3339)
 }

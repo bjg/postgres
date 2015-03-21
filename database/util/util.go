@@ -72,7 +72,7 @@ func MakeInsert(model interface{}) (string, []interface{}) {
 				}
 			}
 		}
-		stmt := fmt.Sprintf(`INSERT INTO %s (%v) VALUES (%v) RETURNING id`,
+		stmt := fmt.Sprintf(`INSERT INTO %s (%v) VALUES (%v) RETURNING *`,
 			name, attrs.String(), bindvars.String())
 		insertStatements[name] = stmt
 	}
@@ -106,7 +106,7 @@ func MakeUpdate(model interface{}) (string, []interface{}) {
 				}
 			}
 		}
-		stmt := fmt.Sprintf(`UPDATE %s SET %v WHERE id = %v RETURNING id`,
+		stmt := fmt.Sprintf(`UPDATE %s SET %v WHERE id = %v RETURNING *`,
 			name, attrs.String(), fmt.Sprintf("$%d", cnt+1))
 		updateStatements[name] = stmt
 	}
@@ -162,7 +162,7 @@ func getValues(model interface{}, exclude string) []interface{} {
 }
 
 func ImportJsonFieldsValues(model interface{}, data JsonFieldsValuesFormat, unmarshal func([]byte) interface{}) []interface{} {
-	names := fieldNamesByTag(model, "db")
+	names := fieldNamesByTag(model, "json")
 	all := make([]interface{}, len(data.Values))
 	for rowNum, rowVal := range data.Values {
 		var buf bytes.Buffer

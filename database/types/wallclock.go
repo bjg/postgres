@@ -22,8 +22,10 @@ func (wc *WallClock) MarshalJSON() ([]byte, error) {
 }
 
 func (wc *WallClock) UnmarshalJSON(b []byte) error {
-	t, err := time.Parse(string(b[1:len(b)-1]), "15:04:00+00")
-	*wc = WallClock(t)
+	t, err := time.Parse(time.Kitchen, string(b[1:len(b)-1]))
+	if err != nil {
+		*wc = WallClock(t)
+	}
 	return err
 }
 
