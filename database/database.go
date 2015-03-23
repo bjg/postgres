@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"strings"
 
 	"github.com/bjg/postgres/database/util"
 	"github.com/jmoiron/sqlx"
@@ -102,9 +101,9 @@ func mustOpen() *sqlx.DB {
 		if uri == "" {
 			log.Fatal("DATABASE_URL is not defined")
 		}
-		sslMode := "require"
-		if strings.Contains(uri, "localhost") {
-			sslMode = "disable"
+		sslMode := os.Getenv("DATABASE_SSL_MODE")
+		if sslMode == "" {
+			sslMode = "require"
 		}
 		db, err = sqlx.Open("postgres", fmt.Sprintf("%s?sslmode=%s", uri, sslMode))
 		if err != nil {
