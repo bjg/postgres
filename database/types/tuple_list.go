@@ -2,92 +2,97 @@ package types
 
 import (
 	"bytes"
-	"log"
 	"strconv"
 	"strings"
 )
 
-type Tuple struct {
-	Key   string
-	Value interface{}
+/*
+ ("(id,4b663084-3f6c-41c2-821a-3e36c924ccbf)","(title,Test)"),("(id,113426a9-6f32-4947-9d6b-ac195bd8c460)","(title,Default)")
+*/
+type Tuple map[string]interface{}
+
+func (t *Tuple) Scan(src interface{}) error {
+	tp := scan(src.([]byte))
+	*t = (*tp)[0]
+	return nil
 }
 
 type TupleList []Tuple
 
 func (tl *TupleList) Scan(src interface{}) error {
+	tp := scan(src.([]byte))
+	*tl = *tp
+	return nil
+}
+
+func scan(buf []byte) *[]Tuple {
 	tuples := []Tuple{}
-	buf := src.([]byte)
-	buf = buf[1:]
-	buf[len(buf)-1] = ','
-	//log.Println(string(buf))
-	const (
-		Start = iota
-		Open
-	)
-	state := Start
-	vals := []string{}
-	var value *bytes.Buffer
-	parens := 0
-	for i := 0; i < len(buf); {
-		switch state {
-		case Start:
-			if buf[i] == ',' {
-				var v interface{}
-				if len(vals) > 2 {
-					v = strings.Join(vals[1:], ",") // string(s)
+	if len(buf) > 0 {
+		buf = buf[1:]
+		const (
+			StartList = iota
+			InTuple
+			FinishTuple
+		)
+		state := StartList
+		vals := []string{}
+		current := make(Tuple)
+		var elem *bytes.Buffer
+		for i := 0; i < len(buf); {
+			if state == StartList {
+				if bytes.HasPrefix(buf[i:], []byte(`"(`)) {
+					//log.Println(`Found "(`)
+					state = InTuple
+					elem = bytes.NewBuffer([]byte{})
+					i += 2
+				}
+			} else if state == InTuple {
+				if bytes.HasPrefix(buf[i:], []byte(`)"`)) {
+					//log.Println(`Found )"`)
+					state = FinishTuple
+					// Value parsed
+					vals = append(vals, elem.String())
+					i += 2
+				} else if buf[i] == ',' {
+					// Key parsed
+					vals = append(vals, elem.String())
+					elem = bytes.NewBuffer([]byte{})
+					i++
 				} else {
-					// End of current tuple
-					if vals[1] != "" {
-						if integer, err := strconv.ParseInt(vals[1], 0, 64); err == nil {
-							v = integer
-						} else if float, err := strconv.ParseFloat(vals[1], 64); err == nil {
-							v = float
-						} else if boolean, err := strconv.ParseBool(vals[1]); err == nil {
-							v = boolean
-						} else {
-							v = vals[1] // string
-						}
-					} else {
-						v = ""
-					}
+					// Key or value byye
+					elem.WriteByte(buf[i])
+					i++
 				}
-				t := Tuple{vals[0], v}
-				tuples = append(tuples, t)
+			} else if state == FinishTuple {
+				// We should have two vals elements
+				var v interface{}
+				if integer, err := strconv.ParseInt(vals[1], 0, 64); err == nil {
+					v = integer
+				} else if float, err := strconv.ParseFloat(vals[1], 64); err == nil {
+					v = float
+				} else if boolean, err := strconv.ParseBool(vals[1]); err == nil {
+					v = boolean
+				} else {
+					v = strings.TrimSpace(strings.Replace(vals[1], `"`, ``, -1)) // string
+				}
+				current[vals[0]] = v
 				vals = []string{}
-				i++
-			} else if bytes.HasPrefix(buf[i:], []byte(`"(`)) {
-				state = Open
-				i += 2
-				value = bytes.NewBuffer([]byte{})
-			} else {
-				log.Fatal(string(buf[i:]), i)
-			}
-		case Open:
-			if bytes.HasPrefix(buf[i:], []byte(`""`)) {
-				// Squash double inverted commas
-				i += 2
-			} else if parens == 0 && bytes.HasPrefix(buf[i:], []byte(`)"`)) {
-				// End of current value and tuple
-				state = Start
-				vals = append(vals, value.String())
-				i += 2
-			} else if parens == 0 && buf[i] == ',' {
-				// End of current value
-				vals = append(vals, value.String())
-				value = bytes.NewBuffer([]byte{})
-				i++
-			} else {
-				// Count value-internal parens
-				if buf[i] == '(' {
-					parens++
-				} else if buf[i] == ')' {
-					parens--
+				if tuples != nil && bytes.HasPrefix(buf[i:], []byte(`),(`)) {
+					//log.Println(`Found ),(`)
+					tuples = append(tuples, current)
+					current = make(Tuple)
+					state = StartList
+					i += 3
+				} else if i == len(buf)-1 {
+					//log.Println(`End of buffer`)
+					tuples = append(tuples, current)
+					break
+				} else {
+					state = StartList
+					i++
 				}
-				value.WriteByte(buf[i])
-				i++
 			}
 		}
 	}
-	*tl = tuples
-	return nil
+	return &tuples
 }
