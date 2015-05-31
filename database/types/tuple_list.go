@@ -31,7 +31,8 @@ func scan(buf []byte) *[]Tuple {
 		buf = buf[1:]
 		const (
 			StartList = iota
-			InTuple
+			InKey
+			InValue
 			FinishTuple
 		)
 		state := StartList
@@ -42,24 +43,34 @@ func scan(buf []byte) *[]Tuple {
 			if state == StartList {
 				if bytes.HasPrefix(buf[i:], []byte(`"(`)) {
 					//log.Println(`Found "(`)
-					state = InTuple
+					state = InKey
 					elem = bytes.NewBuffer([]byte{})
 					i += 2
 				}
-			} else if state == InTuple {
-				if bytes.HasPrefix(buf[i:], []byte(`)"`)) {
-					//log.Println(`Found )"`)
-					state = FinishTuple
-					// Value parsed
-					vals = append(vals, elem.String())
-					i += 2
-				} else if buf[i] == ',' {
+			} else if state == InKey {
+				if buf[i] == ',' {
 					// Key parsed
 					vals = append(vals, elem.String())
+					state = InValue
 					elem = bytes.NewBuffer([]byte{})
 					i++
 				} else {
-					// Key or value byye
+					// Key byte
+					elem.WriteByte(buf[i])
+					i++
+				}
+			} else if state == InValue {
+				if bytes.HasPrefix(buf[i:], []byte(`)""`)) {
+					i += 3
+				} else if bytes.HasPrefix(buf[i:], []byte(`)"`)) {
+					//log.Println(`Found )"`)
+					// Value parsed
+					vals = append(vals, elem.String())
+					state = FinishTuple
+					elem = bytes.NewBuffer([]byte{})
+					i += 2
+				} else {
+					// Value byte
 					elem.WriteByte(buf[i])
 					i++
 				}
