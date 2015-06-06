@@ -8,7 +8,7 @@ import (
 type Timestamp time.Time
 
 func (ts Timestamp) Value() (driver.Value, error) {
-	return []byte(time.Time(ts).Format(time.RFC3339)), nil
+	return []byte(time.Time(ts).Format(time.ANSIC)), nil
 }
 
 func (ts *Timestamp) Scan(src interface{}) error {
@@ -17,20 +17,17 @@ func (ts *Timestamp) Scan(src interface{}) error {
 }
 
 func (ts *Timestamp) MarshalJSON() ([]byte, error) {
-	return []byte(ts.String()), nil
+	return []byte(`"` + ts.String() + `"`), nil
 }
 
 func (ts *Timestamp) UnmarshalJSON(b []byte) error {
 	// Need to strip delimiting quote marks
 	s := string(b[1 : len(b)-1])
-	t, err := time.Parse(time.Kitchen, s)
-	if err != nil {
-		t, err = time.Parse(time.RFC3339, s)
-	}
+	t, err := time.Parse(time.ANSIC, s)
 	*ts = Timestamp(t)
 	return err
 }
 
 func (ts Timestamp) String() string {
-	return time.Time(ts).Format(time.RFC3339)
+	return time.Time(ts).Format(time.ANSIC)
 }
