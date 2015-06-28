@@ -14,7 +14,11 @@ func (ts Timestamp) Value() (driver.Value, error) {
 }
 
 func (ts *Timestamp) Scan(src interface{}) error {
-	*ts = Timestamp(src.(time.Time))
+	if src != nil {
+		*ts = Timestamp(src.(time.Time))
+	} else {
+		ts = nil
+	}
 	return nil
 }
 
